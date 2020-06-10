@@ -3,7 +3,8 @@ import rand from 'https://deno.land/x/rand/mod.ts';
 
 const wss = new WebSocketServer(8080);
 
-const map = new Map<string, WebSocket>();
+type PlayerInfo = { name: string, ws: WebSocket }
+const map = new Map<string, { player1: PlayerInfo, player2: PlayerInfo | null }>();
 
 function success(ws: WebSocket, data?: { roomId: string } | { message: string }) {
     return send(ws, true, data, undefined)
@@ -17,26 +18,32 @@ function send(ws: WebSocket, success: boolean = true, data: { roomId: string } |
     ws.send(JSON.stringify({ success, data, error }));
 }
 
-function createRoom(ws: WebSocket) {
+function createRoom(ws: WebSocket, { name }: { name: string }) {
     const roomId = rand.u13().toString().padStart(4, '0');
-    map.set(roomId, ws);
+    map.set(roomId, { player1: { name, ws }, player2: null });
     success(ws, { roomId })
 }
 
-function join(ws: WebSocket, message: string) {
-    const { data: { roomId, name } } = JSON.parse(message);
-    const socket = map.get(roomId);
-    if (!socket) {
+function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string }) {
+    const roomInfo = map.get(roomId);
+    if (!roomInfo) {
         fail(ws, { reason: '查無此房！' })
         return;
     }
-    success(socket, { message: `${name} JOIN!` })
+    roomInfo.player2 = { name, ws: ws };
+    success(roomInfo.player1.ws, { message: `${name} JOIN!` })
     success(ws)
+    console.log(map);
 }
 
-const router: { [key: string]: (ws: WebSocket, message: string) => void } = {
+function fire(ws: WebSocket, message: string) {
+
+}
+
+const router: { [key: string]: (ws: WebSocket, data: any) => void } = {
     'NEW': createRoom,
     'JOIN': join,
+    'FIRE': fire,
 }
 
 wss.on("connection", function (ws: WebSocket) {
@@ -48,7 +55,7 @@ wss.on("connection", function (ws: WebSocket) {
             fail(ws, { reason: 'Route not found.' });
             return;
         }
-        router[action](ws, message);
+        router[action](ws, data);
     });
 
     ws.on("close", function (code: number) {

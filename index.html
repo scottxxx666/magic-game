@@ -6,11 +6,16 @@
 </head>
 <body>
 <div>
-    <input id="input">
-    <button id="submit">Enter</button>
     <div>
+        <button id="create_room">Create New Game</button>
+    </div>
+    <div>
+        <input id="name">
         <input id="room_id">
-        <button id="join">JOIN</button>
+        <button id="join">Join Game</button>
+    </div>
+    <div>
+        <button id="fire">Fire</button>
     </div>
 </div>
 <script>
@@ -19,22 +24,22 @@
     console.log(e.data);
   });
 
-  const input = document.querySelector('#input');
-  const submit = document.querySelector('#submit');
-  const roomId = document.querySelector('#room_id');
-  const join = document.querySelector('#join');
+  const createRoomBtn = document.querySelector('#create_room');
+  const nameInput = document.querySelector('#name');
+  const roomIdInput = document.querySelector('#room_id');
+  const joinBtn = document.querySelector('#join');
+  const fireBtn = document.querySelector('#fire');
 
-  submit.addEventListener('click', e => {
-    const message = input.value;
-    if (!message) {
-      return;
-    }
-    ws.send(JSON.stringify({ action: message }));
-    input.value = '';
+  createRoomBtn.addEventListener('click', e => {
+    ws.send(JSON.stringify({ action: 'NEW', data: { name: nameInput.value } }));
   });
 
-  join.addEventListener('click', e => {
-    ws.send(JSON.stringify({ action: 'JOIN', data: { roomId: roomId.value, name: input.value } }));
+  joinBtn.addEventListener('click', e => {
+    ws.send(JSON.stringify({ action: 'JOIN', data: { roomId: roomIdInput.value, name: nameInput.value } }));
+  });
+
+  fireBtn.addEventListener('click', e => {
+    ws.send(JSON.stringify({ action: 'FIRE', data: {} }));
   });
 
 </script>
