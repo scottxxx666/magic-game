@@ -1,27 +1,24 @@
 import { WebSocket, WebSocketServer } from "https://deno.land/x/websocket/mod.ts";
 import rand from 'https://deno.land/x/rand/mod.ts';
+import { GameProgressResponse, MessageResponse, ResponseType, RoomResponse } from "./response.ts";
 
 const wss = new WebSocketServer(8080);
 
 type PlayerInfo = { name: string, ws: WebSocket }
 const map = new Map<string, { player1: PlayerInfo, player2: PlayerInfo | null }>();
 
-function success(ws: WebSocket, data?: { roomId: string } | { message: string }) {
-    return send(ws, true, data, undefined)
+function success(ws: WebSocket, type: ResponseType, data: RoomResponse | MessageResponse | GameProgressResponse) {
+    return ws.send(JSON.stringify({ success: true, type, data }))
 }
 
 function fail(ws: WebSocket, error: { reason: string }) {
-    return send(ws, false, undefined, error)
-}
-
-function send(ws: WebSocket, success: boolean = true, data: { roomId: string } | { message: string } | undefined, error: { reason: string } | undefined) {
-    ws.send(JSON.stringify({ success, data, error }));
+    return ws.send(JSON.stringify({ success: false, type: 'Error', error }))
 }
 
 function createRoom(ws: WebSocket, { name }: { name: string }) {
     const roomId = rand.u13().toString().padStart(4, '0');
     map.set(roomId, { player1: { name, ws }, player2: null });
-    success(ws, { roomId })
+    success(ws, ResponseType.Room, { roomId })
 }
 
 function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string }) {
@@ -31,10 +28,8 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
         return;
     }
     roomInfo.player2 = { name, ws: ws };
-    success(roomInfo.player1.ws, { message: `${name} JOIN!` })
-    success(ws)
-    console.log(map);
-}
+    success(roomInfo.player1.ws, ResponseType.Message, { message: `${name} Join!` })
+    success(ws, ResponseType.Message, { message: `Join ${roomInfo.player1.name}'s game!` })
 
 function fire(ws: WebSocket, message: string) {
 
