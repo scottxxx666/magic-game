@@ -33,7 +33,7 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
 
     let i = 3;
     const id = setInterval(() => {
-        success(roomInfo.player1.ws, ResponseType.Room, { message: i.toString() });
+        success(roomInfo.player1.ws, ResponseType.Message, { message: i.toString() });
         if (roomInfo.player2) {
             success(roomInfo.player2.ws, ResponseType.Message, { message: i.toString() });
         }
