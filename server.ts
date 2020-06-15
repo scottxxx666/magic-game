@@ -31,8 +31,29 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
     success(roomInfo.player1.ws, ResponseType.Message, { message: `${name} Join!` })
     success(ws, ResponseType.Message, { message: `Join ${roomInfo.player1.name}'s game!` })
 
-function fire(ws: WebSocket, message: string) {
+    let i = 3;
+    const id = setInterval(() => {
+        success(roomInfo.player1.ws, ResponseType.Room, { message: i.toString() });
+        if (roomInfo.player2) {
+            success(roomInfo.player2.ws, ResponseType.Message, { message: i.toString() });
+        }
+        i--;
+        if (i === 0) {
+            clearInterval(id);
+            if (roomInfo.player2) {
+                start(roomInfo.player1.ws, roomInfo.player2.ws);
+            }
+        }
+    }, 1000);
+}
 
+function fire(ws: WebSocket, { roomId, name, type }: { roomId: string, name: string, type: number }) {
+    const roomInfo = map.get(roomId);
+    if (!attack1Type && roomInfo?.player1.name === name) {
+        attack1Type = type;
+    } else if (!attacks2[length - 1] && roomInfo?.player2?.name === name) {
+        attack2Type = type;
+    }
 }
 
 const router: { [key: string]: (ws: WebSocket, data: any) => void } = {
@@ -62,3 +83,70 @@ wss.on("error", (e: any) => {
     console.error('err', e);
 })
 
+function updateAttacks(attacks1: number[], i: number, attacks2: number[], j: number) {
+    if (attacks1[i] === attacks2[j]) {
+        attacks1[i] = 0;
+        attacks2[j] = 0;
+    } else if (attacks1[i] === 3 && attacks2[j] === 1) {
+        attacks1[i] = 0;
+    } else if (attacks1[i] === 1 && attacks2[j] === 3) {
+        attacks2[j] = 0;
+    } else if (attacks1[i] > attacks2[j]) {
+        attacks2[j] = 0;
+    } else {
+        attacks1[i] = 0;
+    }
+
+    if (attacks1[i] === 0) {
+        while (mid >= 0 && attacks1[mid] === 0) mid--;
+    }
+}
+
+const length = 21;
+let attacks1 = new Array(length).fill(0);
+let attacks2 = new Array(length).fill(0);
+let attack1Type = 0;
+let attack2Type = 0;
+
+let timer = 19;
+let mid = -1;
+
+function start(ws1: WebSocket, ws2: WebSocket) {
+    const interval = setInterval(update, 1000);
+
+    function update() {
+        const current1 = attacks1.pop();
+        attacks1.unshift(attack1Type);
+        const current2 = attacks2.shift();
+        attacks2.push(attack2Type);
+
+        if (mid >= 0) {
+            mid++;
+        } else if (attack1Type > 0) {
+            mid = 0;
+        } else {
+            mid = -1;
+        }
+        attack1Type = 0;
+        attack2Type = 0;
+
+        if (mid >= 0) {
+            if (mid > 0 && attacks2[mid - 1] !== 0) {
+                updateAttacks(attacks1, mid, attacks2, mid - 1);
+            }
+            if (attacks2[mid] > 0) {
+                updateAttacks(attacks1, mid, attacks2, mid);
+            }
+        }
+
+        success(ws1, ResponseType.GameProgress, { attacks1, attacks2 });
+        success(ws2, ResponseType.GameProgress, { attacks1, attacks2 });
+
+        if (timer <= 0) {
+            success(ws1, ResponseType.Message, { message: 'end' })
+            success(ws2, ResponseType.Message, { message: 'end' })
+            clearInterval(interval);
+        }
+        timer--;
+    }
+}
