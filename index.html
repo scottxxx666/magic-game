@@ -22,6 +22,15 @@
   const ws = new WebSocket(`ws://localhost:8080`);
   ws.addEventListener('message', e => {
     console.log(e.data);
+    const m = JSON.parse(e.data);
+    if (m.type === 'ROOM') {
+      roomId = m.data.roomId;
+    } else if (m.type === 'JOIN_SUCCESS') {
+      roomId = m.data.roomId;
+    } else if (m.type === 'GAME_PROGRESS') {
+      console.log(m.data.attacks1);
+      console.log(m.data.attacks2);
+    }
   });
 
   const createRoomBtn = document.querySelector('#create_room');
@@ -29,6 +38,7 @@
   const roomIdInput = document.querySelector('#room_id');
   const joinBtn = document.querySelector('#join');
   const fireBtn = document.querySelector('#fire');
+  let roomId;
 
   createRoomBtn.addEventListener('click', e => {
     ws.send(JSON.stringify({ action: 'NEW', data: { name: nameInput.value } }));
@@ -39,7 +49,7 @@
   });
 
   fireBtn.addEventListener('click', e => {
-    ws.send(JSON.stringify({ action: 'FIRE', data: {} }));
+    ws.send(JSON.stringify({ action: 'ATTACK', data: { roomId: roomId, name: nameInput.value, type: 2 } }));
   });
 
 </script>

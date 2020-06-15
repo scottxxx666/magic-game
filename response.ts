@@ -15,4 +15,6 @@ export enum ResponseType {
     GameProgress = 'GAME_PROGRESS',
     Message = 'MESSAGE',
     Room = 'ROOM',
+    OtherJoin = 'OTHER_JOIN',
+    JoinSuccess = 'JOIN_SUCCESS',
 }

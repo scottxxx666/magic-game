@@ -28,8 +28,8 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
         return;
     }
     roomInfo.player2 = { name, ws: ws };
-    success(roomInfo.player1.ws, ResponseType.Message, { message: `${name} Join!` })
-    success(ws, ResponseType.Message, { message: `Join ${roomInfo.player1.name}'s game!` })
+    success(roomInfo.player1.ws, ResponseType.OtherJoin, { message: `${name} Join!` })
+    success(ws, ResponseType.JoinSuccess, { roomId, message: `Join ${roomInfo.player1.name}'s game!` })
 
     let i = 3;
     const id = setInterval(() => {
@@ -47,7 +47,7 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
     }, 1000);
 }
 
-function fire(ws: WebSocket, { roomId, name, type }: { roomId: string, name: string, type: number }) {
+function attack(ws: WebSocket, { roomId, name, type }: { roomId: string, name: string, type: number }) {
     const roomInfo = map.get(roomId);
     if (!attack1Type && roomInfo?.player1.name === name) {
         attack1Type = type;
@@ -59,7 +59,7 @@ function fire(ws: WebSocket, { roomId, name, type }: { roomId: string, name: str
 const router: { [key: string]: (ws: WebSocket, data: any) => void } = {
     'NEW': createRoom,
     'JOIN': join,
-    'FIRE': fire,
+    'ATTACK': attack,
 }
 
 wss.on("connection", function (ws: WebSocket) {
