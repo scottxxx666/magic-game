@@ -6,6 +6,10 @@ const wss = new WebSocketServer(8080);
 
 const map = new Map<string, RoomInfo>();
 
+function broadcast(roomInfo: RoomInfo, type: ResponseType, data: RoomResponse | MessageResponse | GameProgressResponse) {
+    Object.values(roomInfo).map(e => e?.ws.send(JSON.stringify({ success: true, type, data })));
+}
+
 function success(ws: WebSocket, type: ResponseType, data: RoomResponse | MessageResponse | GameProgressResponse) {
     return ws.send(JSON.stringify({ success: true, type, data }))
 }
@@ -32,10 +36,7 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
 
     let i = 3;
     const id = setInterval(() => {
-        success(roomInfo.player1.ws, ResponseType.Message, { message: i.toString() });
-        if (roomInfo.player2) {
-            success(roomInfo.player2.ws, ResponseType.Message, { message: i.toString() });
-        }
+        broadcast(roomInfo, ResponseType.Message, { message: i.toString() });
         i--;
         if (i === 0) {
             clearInterval(id);
@@ -146,17 +147,13 @@ function start(roomInfo: RoomInfo) {
                 throw new Error('No player2');
             }
             if (roomInfo.player1.blood === roomInfo.player2.blood) {
-                success(ws1, ResponseType.Message, { message: 'draw' });
-                success(ws2, ResponseType.Message, { message: 'draw' });
+                broadcast(roomInfo, ResponseType.Message, { message: 'draw' });
             } else if (roomInfo.player1.blood > roomInfo.player2.blood) {
-                success(ws1, ResponseType.Message, { message: `${roomInfo.player1.name} win` });
-                success(ws2, ResponseType.Message, { message: `${roomInfo.player1.name} win` });
+                broadcast(roomInfo, ResponseType.Message, { message: `${roomInfo.player1.name} win` });
             } else {
-                success(ws1, ResponseType.Message, { message: `${roomInfo.player2.name} win` });
-                success(ws2, ResponseType.Message, { message: `${roomInfo.player2.name} win` });
+                broadcast(roomInfo, ResponseType.Message, { message: `${roomInfo.player2.name} win` });
             }
-            success(ws1, ResponseType.Message, { message: 'end' })
-            success(ws2, ResponseType.Message, { message: 'end' })
+            broadcast(roomInfo, ResponseType.Message, { message: 'end' })
             clearInterval(interval);
             timer = TIME;
         }
@@ -187,8 +184,7 @@ function start(roomInfo: RoomInfo) {
             }
         }
 
-        success(ws1, ResponseType.GameProgress, { attacks1, attacks2 });
-        success(ws2, ResponseType.GameProgress, { attacks1, attacks2 });
+        broadcast(roomInfo, ResponseType.GameProgress, { attacks1, attacks2 });
 
         if (timer <= 0) {
             end();
