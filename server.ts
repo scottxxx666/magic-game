@@ -1,11 +1,10 @@
 import { WebSocket, WebSocketServer } from "https://deno.land/x/websocket/mod.ts";
 import rand from 'https://deno.land/x/rand/mod.ts';
-import { GameProgressResponse, MessageResponse, ResponseType, RoomResponse } from "./response.ts";
+import { GameProgressResponse, MessageResponse, ResponseType, RoomInfo, RoomResponse } from "./response.ts";
 
 const wss = new WebSocketServer(8080);
 
-type PlayerInfo = { name: string, ws: WebSocket }
-const map = new Map<string, { player1: PlayerInfo, player2: PlayerInfo | null }>();
+const map = new Map<string, RoomInfo>();
 
 function success(ws: WebSocket, type: ResponseType, data: RoomResponse | MessageResponse | GameProgressResponse) {
     return ws.send(JSON.stringify({ success: true, type, data }))
@@ -17,7 +16,7 @@ function fail(ws: WebSocket, error: { reason: string }) {
 
 function createRoom(ws: WebSocket, { name }: { name: string }) {
     const roomId = rand.u13().toString().padStart(4, '0');
-    map.set(roomId, { player1: { name, ws }, player2: null });
+    map.set(roomId, { player1: { name, ws, blood: 3 }, player2: null });
     success(ws, ResponseType.Room, { roomId })
 }
 
@@ -27,7 +26,7 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
         fail(ws, { reason: '查無此房！' })
         return;
     }
-    roomInfo.player2 = { name, ws: ws };
+    roomInfo.player2 = { name, ws: ws, blood: 3 };
     success(roomInfo.player1.ws, ResponseType.OtherJoin, { message: `${name} Join!` })
     success(ws, ResponseType.JoinSuccess, { roomId, message: `Join ${roomInfo.player1.name}'s game!` })
 
@@ -41,7 +40,8 @@ function join(ws: WebSocket, { roomId, name }: { roomId: string, name: string })
         if (i === 0) {
             clearInterval(id);
             if (roomInfo.player2) {
-                start(roomInfo.player1.ws, roomInfo.player2.ws);
+                // start(roomInfo.player1.ws, roomInfo.player2.ws);
+                start(roomInfo);
             }
         }
     }, 1000);
@@ -75,12 +75,16 @@ wss.on("connection", function (ws: WebSocket) {
     });
 
     ws.on("close", function (code: number) {
-        console.log('close', code);
+        console.log('close1', code);
+    })
+
+    ws.on('error', function (e: any) {
+        console.log('wsee', e);
     })
 });
 
 wss.on("error", (e: any) => {
-    console.error('err', e);
+    console.error('err1', e);
 })
 
 function updateAttacks(attacks1: number[], i: number, attacks2: number[], j: number) {
@@ -108,19 +112,63 @@ let attacks2 = new Array(length).fill(0);
 let attack1Type = 0;
 let attack2Type = 0;
 
-let timer = 19;
+const TIME = 40;
+let timer = TIME;
 let mid = -1;
 
-function start(ws1: WebSocket, ws2: WebSocket) {
-    const interval = setInterval(update, 1000);
+function start(roomInfo: RoomInfo) {
+    const ws1 = roomInfo.player1.ws;
+    if (!roomInfo.player2) {
+        throw new Error('No player2!');
+    }
+    const ws2 = roomInfo.player2.ws;
+    const interval = setInterval(update, 500);
 
     function update() {
+        if (!roomInfo.player2) {
+            throw new Error('No player2!');
+        }
+
         const current1 = attacks1.pop();
         attacks1.unshift(attack1Type);
         const current2 = attacks2.shift();
         attacks2.push(attack2Type);
 
-        if (mid >= 0) {
+        if (current1) {
+            roomInfo.player2.blood--;
+        }
+        if (current2) {
+            roomInfo.player1.blood--;
+        }
+
+        function end() {
+            if (!roomInfo.player2) {
+                throw new Error('No player2');
+            }
+            if (roomInfo.player1.blood === roomInfo.player2.blood) {
+                success(ws1, ResponseType.Message, { message: 'draw' });
+                success(ws2, ResponseType.Message, { message: 'draw' });
+            } else if (roomInfo.player1.blood > roomInfo.player2.blood) {
+                success(ws1, ResponseType.Message, { message: `${roomInfo.player1.name} win` });
+                success(ws2, ResponseType.Message, { message: `${roomInfo.player1.name} win` });
+            } else {
+                success(ws1, ResponseType.Message, { message: `${roomInfo.player2.name} win` });
+                success(ws2, ResponseType.Message, { message: `${roomInfo.player2.name} win` });
+            }
+            success(ws1, ResponseType.Message, { message: 'end' })
+            success(ws2, ResponseType.Message, { message: 'end' })
+            clearInterval(interval);
+            timer = TIME;
+        }
+
+        if (roomInfo.player1.blood === 0 || roomInfo.player2.blood === 0) {
+            end();
+            return;
+        }
+
+        if (mid >= length - 1) {
+            while (mid >= 0 && attacks1[mid] === 0) mid--;
+        } else if (mid >= 0) {
             mid++;
         } else if (attack1Type > 0) {
             mid = 0;
@@ -143,9 +191,8 @@ function start(ws1: WebSocket, ws2: WebSocket) {
         success(ws2, ResponseType.GameProgress, { attacks1, attacks2 });
 
         if (timer <= 0) {
-            success(ws1, ResponseType.Message, { message: 'end' })
-            success(ws2, ResponseType.Message, { message: 'end' })
-            clearInterval(interval);
+            end();
+            return;
         }
         timer--;
     }
